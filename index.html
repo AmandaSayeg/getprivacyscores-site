@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GetPrivacyScores — Ranking de Privacidade de Sites</title>
+  <meta name="description" content="Ranking em tempo real dos sites mais confiáveis. Dados coletados por usuários reais via extensão Privacy Check." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --safe: #16a34a;
+      --safe-bg: #f0fdf4;
+      --moderate: #d97706;
+      --moderate-bg: #fffbeb;
+      --risky: #dc2626;
+      --risky-bg: #fef2f2;
+      --text: #111827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --bg: #f9fafb;
+      --white: #ffffff;
+      --radius: 12px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 16px rgba(0,0,0,0.08);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    /* ── NAV ── */
+    nav {
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .nav-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+    }
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--text);
+      text-decoration: none;
+    }
+    .nav-logo .shield {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, #111827 0%, #374151 100%);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 16px;
+    }
+    .nav-cta {
+      background: #111827;
+      color: white;
+      padding: 8px 20px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+      transition: background 0.15s;
+    }
+    .nav-cta:hover { background: #374151; }
+
+    /* ── HERO ── */
+    .hero {
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      padding: 64px 24px 48px;
+      text-align: center;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #f0fdf4;
+      color: var(--safe);
+      border: 1px solid #bbf7d0;
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+    .hero-badge .dot {
+      width: 6px; height: 6px;
+      background: var(--safe);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    .hero h1 {
+      font-size: clamp(28px, 5vw, 48px);
+      font-weight: 700;
+      line-height: 1.2;
+      max-width: 700px;
+      margin: 0 auto 16px;
+    }
+    .hero h1 span { color: #374151; }
+    .hero p {
+      color: var(--muted);
+      max-width: 520px;
+      margin: 0 auto 32px;
+      font-size: 17px;
+    }
+    .hero-stats {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 40px;
+      flex-wrap: wrap;
+    }
+    .hero-stat .number {
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1;
+      font-family: 'DM Mono', monospace;
+    }
+    .hero-stat .label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* ── EXTENSION CTA BANNER ── */
+    .ext-banner {
+      background: #111827;
+      color: white;
+      padding: 20px 24px;
+      text-align: center;
+    }
+    .ext-banner-inner {
+      max-width: 800px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .ext-banner p {
+      font-size: 14px;
+      opacity: 0.85;
+    }
+    .ext-banner p strong { opacity: 1; font-weight: 600; }
+    .ext-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #f3f4f6;
+      color: #111827;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .btn-chrome {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #4285f4;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .btn-chrome:hover { background: #3071e3; }
+    .btn-chrome svg { width: 16px; height: 16px; fill: white; }
+
+    /* ── MAIN LAYOUT ── */
+    .main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 24px;
+    }
+
+    /* ── FILTERS ── */
+    .filters {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+    .filter-label { font-weight: 600; font-size: 13px; color: var(--muted); }
+    .category-btns {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .cat-btn {
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--white);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      transition: all 0.15s;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .cat-btn:hover { border-color: #111827; color: var(--text); }
+    .cat-btn.active {
+      background: #111827;
+      color: white;
+      border-color: #111827;
+    }
+
+    .sort-select {
+      margin-left: auto;
+      padding: 7px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      background: var(--white);
+      color: var(--text);
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    /* ── RANKING TABLE ── */
+    .ranking-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .ranking-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .ranking-subtitle {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .last-updated {
+      font-size: 11px;
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+    }
+
+    .ranking-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .site-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      display: grid;
+      grid-template-columns: 40px 1fr auto;
+      align-items: center;
+      gap: 16px;
+      cursor: pointer;
+      transition: box-shadow 0.15s, border-color 0.15s;
+    }
+    .site-card:hover {
+      box-shadow: var(--shadow-md);
+      border-color: #d1d5db;
+    }
+
+    .rank-num {
+      font-size: 22px;
+      font-weight: 700;
+      font-family: 'DM Mono', monospace;
+      color: var(--muted);
+      text-align: center;
+    }
+    .rank-num.top { color: var(--text); }
+
+    .site-info { flex: 1; min-width: 0; }
+    .site-name-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 4px;
+    }
+    .site-name {
+      font-weight: 600;
+      font-size: 15px;
+    }
+    .site-category {
+      font-size: 11px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: #f3f4f6;
+      color: var(--muted);
+    }
+    .risk-tag {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 12px;
+    }
+    .risk-tag.safe { background: #dcfce7; color: var(--safe); }
+    .risk-tag.moderate { background: #fef3c7; color: var(--moderate); }
+    .risk-tag.risky { background: #fee2e2; color: var(--risky); }
+
+    .site-meta {
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      gap: 16px;
+    }
+    .site-meta span { display: flex; align-items: center; gap: 4px; }
+
+    .score-display {
+      text-align: right;
+    }
+    .score-big {
+      font-size: 28px;
+      font-weight: 700;
+      font-family: 'DM Mono', monospace;
+      line-height: 1;
+    }
+    .score-big.safe { color: var(--safe); }
+    .score-big.moderate { color: var(--moderate); }
+    .score-big.risky { color: var(--risky); }
+    .score-label { font-size: 11px; color: var(--muted); }
+
+    /* Score bar mini -->*/
+    .score-bar-mini {
+      width: 80px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin: 4px 0 0 auto;
+      overflow: hidden;
+    }
+    .score-bar-fill { height: 100%; border-radius: 2px; }
+    .score-bar-fill.safe { background: var(--safe); }
+    .score-bar-fill.moderate { background: var(--moderate); }
+    .score-bar-fill.risky { background: var(--risky); }
+
+    /* ── EXPANDED CARD ── */
+    .site-detail {
+      display: none;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      grid-column: 1 / -1;
+    }
+    .site-card.expanded .site-detail { display: block; }
+    .site-card.expanded { border-color: #d1d5db; }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 600px) { .detail-grid { grid-template-columns: 1fr; } }
+
+    .detail-section h4 {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .detail-points { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+    .detail-point {
+      font-size: 12px;
+      padding: 5px 8px;
+      border-radius: 6px;
+      display: flex;
+      gap: 6px;
+    }
+    .detail-point.pos { background: #f0fdf4; border-left: 2px solid var(--safe); }
+    .detail-point.neg { background: #fffbeb; border-left: 2px solid var(--moderate); }
+    .detail-point-icon { flex-shrink: 0; font-size: 11px; }
+
+    .data-pills { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+    .data-pill {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 12px;
+      background: #f3f4f6;
+      color: var(--text);
+    }
+
+    .analysis-count {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── CATEGORY BREAKDOWN ── */
+    .cat-scores {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .cat-score-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+    .cat-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+    }
+    .cat-dot.safe { background: var(--safe); }
+    .cat-dot.moderate { background: var(--moderate); }
+    .cat-dot.risky { background: var(--risky); }
+
+    /* ── EMPTY / LOADING ── */
+    .state-empty {
+      text-align: center;
+      padding: 64px 24px;
+      color: var(--muted);
+    }
+    .state-loading {
+      text-align: center;
+      padding: 48px;
+      color: var(--muted);
+    }
+    .spinner {
+      width: 28px; height: 28px;
+      border: 2px solid var(--border);
+      border-top-color: #111827;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── HOW IT WORKS ── */
+    .how-section {
+      background: var(--white);
+      border-top: 1px solid var(--border);
+      padding: 64px 24px;
+      margin-top: 48px;
+    }
+    .how-inner { max-width: 900px; margin: 0 auto; }
+    .how-title {
+      text-align: center;
+      font-size: 26px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .how-sub {
+      text-align: center;
+      color: var(--muted);
+      margin-bottom: 40px;
+    }
+    .how-steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 24px;
+    }
+    .how-step {
+      text-align: center;
+      padding: 24px 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg);
+    }
+    .how-step .step-icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+    }
+    .how-step h3 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+    .how-step p { font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+    /* ── INSTALL SECTION ── */
+    .install-section {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 48px 24px;
+      text-align: center;
+    }
+    .install-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px 32px;
+      box-shadow: var(--shadow-md);
+    }
+    .install-card h2 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+    .install-card p { color: var(--muted); margin-bottom: 24px; font-size: 14px; }
+    .browser-note {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fde68a;
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 500;
+      margin-bottom: 20px;
+    }
+    .btn-install-big {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: #4285f4;
+      color: white;
+      padding: 14px 32px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 15px;
+      transition: background 0.15s;
+      width: 100%;
+      max-width: 320px;
+    }
+    .btn-install-big:hover { background: #3071e3; }
+
+    /* ── FOOTER ── */
+    footer {
+      background: #111827;
+      color: rgba(255,255,255,0.6);
+      padding: 24px;
+      text-align: center;
+      font-size: 12px;
+    }
+    footer strong { color: white; }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <div class="nav-inner">
+      <a class="nav-logo" href="/">
+        <div class="shield">🛡</div>
+        GetPrivacyScores
+      </a>
+      <a class="nav-cta" href="#install" id="navInstallBtn">Instalar Extensão</a>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-badge">
+      <span class="dot"></span>
+      Ranking em tempo real
+    </div>
+    <h1>Quais sites respeitam<br><span>sua privacidade?</span></h1>
+    <p>Ranking colaborativo alimentado por usuários reais. A cada análise feita pela extensão <strong>Privacy Check</strong>, os dados atualizam automaticamente.</p>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <div class="number" id="statSites">—</div>
+        <div class="label">sites analisados</div>
+      </div>
+      <div class="hero-stat">
+        <div class="number" id="statAnalyses">—</div>
+        <div class="label">análises realizadas</div>
+      </div>
+      <div class="hero-stat">
+        <div class="number" id="statCategories">—</div>
+        <div class="label">categorias</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EXTENSION BANNER -->
+  <div class="ext-banner">
+    <div class="ext-banner-inner">
+      <p>
+        <strong>📊 Você ajuda o ranking existir.</strong>
+        Instale a extensão e cada análise que você fizer alimenta este ranking em tempo real.
+        <span class="ext-badge">Só Chrome por enquanto</span>
+      </p>
+      <a class="btn-chrome" href="https://chrome.google.com/webstore/detail/privacy-check/SEU_ID_AQUI" target="_blank" id="extBannerBtn">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v2h-2v-2zm2-3H11V7h2v7z" fill="none"/><circle cx="12" cy="12" r="4"/></svg>
+        Instalar no Chrome
+      </a>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <main class="main">
+
+    <!-- FILTERS -->
+    <div class="filters">
+      <span class="filter-label">Categoria:</span>
+      <div class="category-btns" id="categoryBtns">
+        <button class="cat-btn active" data-cat="all">Todos</button>
+        <button class="cat-btn" data-cat="redes-sociais">Redes Sociais</button>
+        <button class="cat-btn" data-cat="ecommerce">E-commerce</button>
+        <button class="cat-btn" data-cat="financas">Finanças</button>
+        <button class="cat-btn" data-cat="saude">Saúde</button>
+        <button class="cat-btn" data-cat="tecnologia">Tecnologia</button>
+        <button class="cat-btn" data-cat="noticias">Notícias</button>
+        <button class="cat-btn" data-cat="outros">Outros</button>
+      </div>
+      <select class="sort-select" id="sortSelect">
+        <option value="score_desc">Maior nota</option>
+        <option value="score_asc">Menor nota</option>
+        <option value="analyses_desc">Mais analisados</option>
+        <option value="recent">Mais recentes</option>
+      </select>
+    </div>
+
+    <!-- RANKING -->
+    <div class="ranking-header">
+      <div>
+        <div class="ranking-title" id="rankingTitle">Ranking Geral</div>
+        <div class="ranking-subtitle">Média das notas atribuídas pelos usuários da extensão</div>
+      </div>
+      <div class="last-updated" id="lastUpdated"></div>
+    </div>
+
+    <div id="rankingList" class="ranking-list">
+      <div class="state-loading">
+        <div class="spinner"></div>
+        <p>Carregando ranking...</p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- HOW IT WORKS -->
+  <section class="how-section">
+    <div class="how-inner">
+      <div class="how-title">Como funciona o ranking?</div>
+      <div class="how-sub">Totalmente transparente e alimentado por usuários reais</div>
+      <div class="how-steps">
+        <div class="how-step">
+          <div class="step-icon">🔍</div>
+          <h3>Usuário instala a extensão</h3>
+          <p>A extensão Privacy Check está disponível gratuitamente no Chrome.</p>
+        </div>
+        <div class="how-step">
+          <div class="step-icon">📋</div>
+          <h3>Analisa um site</h3>
+          <p>Ao aceitar termos ou se cadastrar em um site, a extensão analisa a política de privacidade com IA.</p>
+        </div>
+        <div class="how-step">
+          <div class="step-icon">📊</div>
+          <h3>Dados alimentam o ranking</h3>
+          <p>A nota e os detalhes da análise são enviados anonimamente para este ranking em tempo real.</p>
+        </div>
+        <div class="how-step">
+          <div class="step-icon">🏆</div>
+          <h3>Ranking atualiza automaticamente</h3>
+          <p>Quanto mais usuários analisam, mais preciso e confiável o ranking fica.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INSTALL CTA -->
+  <section class="install-section" id="install">
+    <div class="install-card">
+      <h2>Faça parte do ranking</h2>
+      <p>Instale a extensão Privacy Check e ajude a construir o maior banco de dados de privacidade digital do Brasil.</p>
+      <div class="browser-note">
+        ⚠️ Disponível por enquanto apenas para Google Chrome
+      </div>
+      <br />
+      <a class="btn-install-big" href="https://chrome.google.com/webstore/detail/privacy-check/SEU_ID_AQUI" target="_blank" id="mainInstallBtn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z" fill="white"/>
+          <circle cx="12" cy="12" r="4" fill="#4285f4"/>
+        </svg>
+        Instalar no Chrome — Grátis
+      </a>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <p><strong>GetPrivacyScores</strong> · Alimentado por <strong>Privacy Check</strong> · Dados coletados anonimamente · <a href="/privacidade" style="color:rgba(255,255,255,0.6)">Política de Privacidade</a></p>
+  </footer>
+
+  <script>
+    // ── CONFIG SUPABASE ──
+    // ⚠️ Substitua pelos valores do seu projeto Supabase
+    const SUPABASE_URL = 'https://udpsqzhvvscxwykxzhpt.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_4Wqmp-beb1lv7YrbBabZlA_8tLN18Yy';
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // ── ESTADO ──
+    let allSites = [];
+    let currentCategory = 'all';
+    let currentSort = 'score_desc';
+    let expandedCard = null;
+
+    // ── CATEGORIAS ──
+    const CATEGORY_MAP = {
+      'redes-sociais': 'Redes Sociais',
+      'ecommerce': 'E-commerce',
+      'financas': 'Finanças',
+      'saude': 'Saúde',
+      'tecnologia': 'Tecnologia',
+      'noticias': 'Notícias',
+      'outros': 'Outros',
+    };
+
+    // ── CARREGAR DADOS ──
+    async function loadRanking() {
+      try {
+        const { data, error } = await supabase
+          .from('site_rankings')
+          .select('*')
+          .order('avg_score', { ascending: false });
+
+        if (error) throw error;
+
+        allSites = data || [];
+        updateStats();
+        renderRanking();
+        updateLastUpdated();
+
+      } catch (err) {
+        console.error('Erro ao carregar ranking:', err);
+        renderFallback();
+      }
+    }
+
+    function updateStats() {
+      document.getElementById('statSites').textContent = allSites.length.toLocaleString('pt-BR');
+      const totalAnalyses = allSites.reduce((s, x) => s + (x.analysis_count || 0), 0);
+      document.getElementById('statAnalyses').textContent = totalAnalyses.toLocaleString('pt-BR');
+      const cats = new Set(allSites.map(s => s.category).filter(Boolean));
+      document.getElementById('statCategories').textContent = cats.size;
+    }
+
+    function renderFallback() {
+      // Dados de demonstração enquanto o Supabase não está conectado
+      allSites = [
+        { id: 1, domain: 'duckduckgo.com', display_name: 'DuckDuckGo', category: 'tecnologia', avg_score: 88, analysis_count: 342, risk_level: 'safe', positive_points: ['Não rastreia o histórico de buscas', 'Não vende dados para anunciantes', 'Política de privacidade clara e simples'], negative_points: ['Resultados de busca menos personalizados', 'Algumas funcionalidades limitadas vs Google'], data_collected: ['IP anonimizado', 'Termo buscado'], data_usage: ['Exibir resultados de busca', 'Nenhum uso publicitário'], scores: { collection: 22, sharing: 23, rights: 21, security: 22 } },
+        { id: 2, domain: 'notion.so', display_name: 'Notion', category: 'tecnologia', avg_score: 74, analysis_count: 215, risk_level: 'moderate', positive_points: ['Permite exportar todos os seus dados', 'Autenticação em dois fatores disponível'], negative_points: ['Dados armazenados em servidores nos EUA', 'Compartilha dados com serviços terceiros de analytics'], data_collected: ['E-mail', 'Conteúdo criado', 'Comportamento de uso'], data_usage: ['Melhoria do produto', 'Suporte ao cliente', 'Analytics interno'], scores: { collection: 18, sharing: 17, rights: 20, security: 19 } },
+        { id: 3, domain: 'facebook.com', display_name: 'Facebook (Meta)', category: 'redes-sociais', avg_score: 31, analysis_count: 891, risk_level: 'risky', positive_points: ['Permite download de dados pessoais', 'Oferece controles de privacidade avançados (embora complexos)'], negative_points: ['Coleta dados de usuários mesmo fora da plataforma via pixel', 'Histórico extenso de vazamentos e uso indevido de dados', 'Compartilha dados com parceiros comerciais e anunciantes', 'Rastreamento de comportamento para publicidade hiperdirecionada'], data_collected: ['Nome', 'Localização', 'Comportamento de navegação', 'Contatos', 'Dados biométricos (fotos)'], data_usage: ['Publicidade direcionada', 'Venda para parceiros', 'Treinamento de IA'], scores: { collection: 6, sharing: 5, rights: 11, security: 9 } },
+        { id: 4, domain: 'wikipedia.org', display_name: 'Wikipedia', category: 'noticias', avg_score: 92, analysis_count: 156, risk_level: 'safe', positive_points: ['Organização sem fins lucrativos, sem publicidade', 'Coleta mínima de dados', 'Política de privacidade muito transparente', 'Código aberto e auditável'], negative_points: ['Logs de acesso mantidos por 90 dias'], data_collected: ['IP (temporário)', 'Cookies de sessão'], data_usage: ['Funcionamento técnico do site', 'Segurança contra ataques'], scores: { collection: 23, sharing: 24, rights: 22, security: 23 } },
+        { id: 5, domain: 'nubank.com.br', display_name: 'Nubank', category: 'financas', avg_score: 68, analysis_count: 423, risk_level: 'moderate', positive_points: ['Dados criptografados em trânsito e em repouso', 'Obrigado por lei (LGPD) a proteger dados financeiros', 'Permite cancelamento e exclusão de conta'], negative_points: ['Compartilha dados com empresas do grupo e parceiros', 'Usa dados para ofertas de produtos e crédito', 'Histórico de comportamento financeiro armazenado por anos'], data_collected: ['CPF', 'Histórico financeiro', 'Geolocalização', 'Dados do dispositivo'], data_usage: ['Análise de crédito', 'Ofertas personalizadas', 'Conformidade regulatória'], scores: { collection: 14, sharing: 15, rights: 19, security: 20 } },
+        { id: 6, domain: 'amazon.com.br', display_name: 'Amazon', category: 'ecommerce', avg_score: 44, analysis_count: 634, risk_level: 'moderate', positive_points: ['Infraestrutura de segurança robusta (AWS)', 'Permite excluir histórico de compras'], negative_points: ['Perfil extenso de comportamento de compra', 'Alexa coleta dados de voz em dispositivos Echo', 'Compartilha com sellers e parceiros de publicidade'], data_collected: ['Histórico de compras', 'Listas de desejo', 'Dados de voz (Alexa)', 'Comportamento de navegação'], data_usage: ['Recomendações personalizadas', 'Publicidade direcionada', 'Venda para terceiros'], scores: { collection: 8, sharing: 10, rights: 14, security: 12 } },
+      ];
+      updateStats();
+      renderRanking();
+      updateLastUpdated();
+    }
+
+    function getFilteredSorted() {
+      let sites = currentCategory === 'all'
+        ? [...allSites]
+        : allSites.filter(s => s.category === currentCategory);
+
+      sites.sort((a, b) => {
+        if (currentSort === 'score_desc') return (b.avg_score || 0) - (a.avg_score || 0);
+        if (currentSort === 'score_asc') return (a.avg_score || 0) - (b.avg_score || 0);
+        if (currentSort === 'analyses_desc') return (b.analysis_count || 0) - (a.analysis_count || 0);
+        return new Date(b.last_analyzed || 0) - new Date(a.last_analyzed || 0);
+      });
+
+      return sites;
+    }
+
+    function getLevel(score) {
+      if (score >= 70) return 'safe';
+      if (score >= 40) return 'moderate';
+      return 'risky';
+    }
+
+    function renderRanking() {
+      const sites = getFilteredSorted();
+      const container = document.getElementById('rankingList');
+
+      if (!sites.length) {
+        container.innerHTML = `<div class="state-empty">🔍 Nenhum site encontrado nesta categoria ainda.<br><small style="margin-top:8px;display:block">Instale a extensão e seja o primeiro a analisar!</small></div>`;
+        return;
+      }
+
+      container.innerHTML = '';
+
+      sites.forEach((site, index) => {
+        const score = Math.round(site.avg_score || 0);
+        const level = site.risk_level || getLevel(score);
+        const card = document.createElement('div');
+        card.className = 'site-card';
+        card.dataset.id = site.id;
+
+        const positives = (site.positive_points || []).slice(0, 3);
+        const negatives = (site.negative_points || []).slice(0, 4);
+        const dataCollected = (site.data_collected || []).slice(0, 5);
+        const catName = CATEGORY_MAP[site.category] || site.category || 'Outros';
+
+        const levelLabel = { safe: '✅ Confiável', moderate: '⚠️ Moderado', risky: '🚨 Arriscado' }[level];
+
+        card.innerHTML = `
+          <div class="rank-num ${index < 3 ? 'top' : ''}">${index + 1}</div>
+          <div class="site-info">
+            <div class="site-name-row">
+              <span class="site-name">${site.display_name || site.domain}</span>
+              <span class="site-category">${catName}</span>
+              <span class="risk-tag ${level}">${levelLabel}</span>
+            </div>
+            <div class="site-meta">
+              <span>🌐 ${site.domain}</span>
+              <span>📊 ${(site.analysis_count || 0).toLocaleString('pt-BR')} análises</span>
+            </div>
+            <div class="site-detail">
+              <div class="detail-grid">
+                <div class="detail-section">
+                  <h4>✅ Pontos Positivos</h4>
+                  <ul class="detail-points">
+                    ${positives.map(p => `<li class="detail-point pos"><span class="detail-point-icon">✓</span>${p}</li>`).join('')}
+                  </ul>
+                </div>
+                <div class="detail-section">
+                  <h4>⚠️ Pontos de Atenção</h4>
+                  <ul class="detail-points">
+                    ${negatives.map(p => `<li class="detail-point neg"><span class="detail-point-icon">!</span>${p}</li>`).join('')}
+                  </ul>
+                </div>
+              </div>
+              ${dataCollected.length ? `
+              <div class="detail-section" style="margin-top:12px">
+                <h4>📋 Dados Coletados</h4>
+                <div class="data-pills">${dataCollected.map(d => `<span class="data-pill">${d}</span>`).join('')}</div>
+              </div>` : ''}
+              <div class="analysis-count">
+                Baseado em ${(site.analysis_count || 0).toLocaleString('pt-BR')} análises de usuários reais da extensão Privacy Check
+              </div>
+            </div>
+          </div>
+          <div class="score-display">
+            <div class="score-big ${level}">${score}</div>
+            <div class="score-label">/100</div>
+            <div class="score-bar-mini">
+              <div class="score-bar-fill ${level}" style="width:${score}%"></div>
+            </div>
+          </div>
+        `;
+
+        card.addEventListener('click', () => {
+          const wasExpanded = card.classList.contains('expanded');
+          document.querySelectorAll('.site-card.expanded').forEach(c => c.classList.remove('expanded'));
+          if (!wasExpanded) card.classList.add('expanded');
+        });
+
+        container.appendChild(card);
+      });
+
+      const catLabel = currentCategory === 'all' ? 'Geral' : (CATEGORY_MAP[currentCategory] || currentCategory);
+      document.getElementById('rankingTitle').textContent = `Ranking ${catLabel}`;
+    }
+
+    function updateLastUpdated() {
+      const el = document.getElementById('lastUpdated');
+      el.textContent = `Atualizado: ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+    }
+
+    // ── FILTROS ──
+    document.getElementById('categoryBtns').addEventListener('click', e => {
+      const btn = e.target.closest('.cat-btn');
+      if (!btn) return;
+      document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentCategory = btn.dataset.cat;
+      renderRanking();
+    });
+
+    document.getElementById('sortSelect').addEventListener('change', e => {
+      currentSort = e.target.value;
+      renderRanking();
+    });
+
+    // ── REAL-TIME SUPABASE ──
+    function subscribeRealtime() {
+      supabase
+        .channel('site-rankings-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'site_rankings' }, payload => {
+          if (payload.eventType === 'INSERT') {
+            allSites.push(payload.new);
+          } else if (payload.eventType === 'UPDATE') {
+            const idx = allSites.findIndex(s => s.id === payload.new.id);
+            if (idx !== -1) allSites[idx] = payload.new;
+          }
+          updateStats();
+          renderRanking();
+          updateLastUpdated();
+        })
+        .subscribe();
+    }
+
+    // ── INIT ──
+    loadRanking().then(() => {
+      try { subscribeRealtime(); } catch(e) {}
+    });
+
+    // Auto-refresh a cada 5 minutos
+    setInterval(loadRanking, 5 * 60 * 1000);
+  </script>
+</body>
+</html>
