@@ -1082,12 +1082,16 @@
     }
 
     function getFiltered() {
-      sites.sort((a, b) => {
-        if (currentSort === 'score_asc') return (a.avg_score||0) - (b.avg_score||0);
-        if (currentSort === 'analyses_desc') return (b.analysis_count||0) - (a.analysis_count||0);
-        return (b.avg_score||0) - (a.avg_score||0);
+      let filtered = [...allSites];
+      if (currentCategory && currentCategory !== 'all') {
+      filtered = filtered.filter(s => s.category === currentCategory);
+      }
+      filtered.sort((a, b) => {
+      if (currentSort === 'score_asc') return (a.avg_score||0) - (b.avg_score||0);
+      if (currentSort === 'analyses_desc') return (b.analysis_count||0) - (a.analysis_count||0);
+      return (b.avg_score||0) - (a.avg_score||0);
       });
-      return sites;
+      return filtered;
     }
 
     function renderRanking() {
